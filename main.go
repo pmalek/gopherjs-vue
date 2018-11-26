@@ -4,14 +4,15 @@ package main
 
 import (
 	"encoding/json"
-	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gopherjs/gopherjs/js"
 	vue "github.com/oskca/gopherjs-vue"
 	"github.com/pmalek/gopherjs-vue/news"
+	"honnef.co/go/js/xhr"
 )
 
 const NEWSAPIKEY = ""
@@ -72,29 +73,23 @@ func (m *Model) Fetch() {
 					"pageSize=" + strconv.Itoa(pageSize) + "&" +
 					"page=" + strconv.Itoa(i) + "&" +
 					"apiKey=" + NEWSAPIKEY
-				req, err := http.NewRequest(http.MethodGet, url, nil)
-				if err != nil {
-					println(err)
-					wg.Done()
-					return
-				}
 
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
+				req := xhr.NewRequest("GET", url)
+				req.Timeout = 1000
+				req.ResponseType = xhr.Text
+				if err := req.Send(nil); err != nil {
 					println(err)
 					wg.Done()
 					return
 				}
-				defer resp.Body.Close()
 
 				var nResp news.Response
-				if err := json.NewDecoder(resp.Body).Decode(&nResp); err != nil {
+				decoder := json.NewDecoder(strings.NewReader(req.ResponseText))
+				if err := decoder.Decode(&nResp); err != nil {
 					println(err)
 					wg.Done()
 					return
 				}
-
-				println("Received ", len(nResp.Articles), " articles")
 
 				ch <- nResp.Articles
 			}(i)
